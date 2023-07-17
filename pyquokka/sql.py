@@ -164,7 +164,7 @@ def emit_code(node, var_names, var_values, aliases, tables, table_prefixes, qc, 
                         filter_stmt = var_name + ' = ' + var_name + '.filter_sql("' + f + '")'
                         code += filter_stmt + '\n'
                     # (TODO) there are some formatting issues for filter where 'r_name = ASIA', etc. won't work, so we can comment this out for now. Because of this generated code of queries involving filters may not run (but can be easily manually fixed). We will fix the formatting in the future.
-                    if not print_code: result = result.filter_sql(f)
+                    result = result.filter_sql(f)
         if print_code and len(selected_columns) > 0:
             select_stmt = var_name + ' = ' + var_name + '.select(' + str(selected_columns) + ')'
             code += select_stmt + '\n'
@@ -272,6 +272,7 @@ def emit_code(node, var_names, var_values, aliases, tables, table_prefixes, qc, 
         if print_code:
             agg_stmt = var_name + ' = ' + var_name + '.agg_sql("' + ','.join(aggregates) + '")'
             code += agg_stmt
+        result = result.agg_sql(','.join(aggregates))
     else:
         code += '# not supported yet'
 
@@ -309,7 +310,13 @@ def generate_code_from_plan(plan, tables, qc, table_prefixes = {
     aliases = {'count_star()': 'count(*)'}
     
     for node in reverse_sorted_nodes:
-        emit_code(node, var_names, var_values, aliases, tables, table_prefixes, qc)
+        emit_code(node, var_names, var_values, aliases, tables, table_prefixes, qc, print_code=False)
+
+    # Instead of just printing the generated code, compute the value of the last node
+    last_node = reverse_sorted_nodes[-1]
+    last_node_var = var_names[last_node['id']]
+
+    return var_values[last_node_var].collect()
                             
 def generate_code(query, data_path, table_prefixes = {
         'l': 'lineitem',
@@ -403,4 +410,4 @@ def generate_code(query, data_path, table_prefixes = {
     
     print("Finished plan generation, beginning computation")
     
-    generate_code_from_plan(plan, tables, qc, table_prefixes)
+    return generate_code_from_plan(plan, tables, qc, table_prefixes)
